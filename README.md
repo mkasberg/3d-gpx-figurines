@@ -1,4 +1,4 @@
-# 3D Course Miniature Figurines
+# 3D GPX Figurines
 
 Use OpenSCAD to generate 3D printable STL files for miniature figurines from any
 GPX course!
