@@ -17,10 +17,10 @@ font = "Roboto:style=bold";
 // Font size (mm height)
 font_size = 3.5;
 
-// % of the polyline to map. (Looks better without overlaps).
+// Percentage of the route to render. Useful for out & back routes where you might only render ~50%
 out_back = 100;
 
-// Rotate the map this many degrees from North
+// Rotate the map this many degrees from North.
 map_rotation = 0;
 
 // Elevation data. Length should match distance data.
