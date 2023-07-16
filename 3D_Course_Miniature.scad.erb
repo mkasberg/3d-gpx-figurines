@@ -1,0 +1,210 @@
+/*
+3D Course Miniature
+
+Use a GPX file from a run or bike ride to generate a 3D printable miniature figurine of the course.
+See the README for complete instructions.
+
+Mike Kasberg
+*/
+
+// The activity title. Max X chars.
+title = "<%= title %>";
+
+// Bold fonts print best (especially at small sizes)
+// Make sure these fonts are installed
+font = "Roboto:style=bold";
+
+// Font size (mm height)
+font_size = 3.5;
+
+// % of the polyline to map. (Looks better without overlaps).
+out_back = <%= out_back %>;
+
+// Rotate the map this many degrees from North
+map_rotation = <%= map_rotation %>;
+
+// Elevation data. Length should match distance data.
+elevation_values = <%= elevation %>;
+//elevation_values = [10, 8, 1, 9];
+
+// Lat/Lng Data. As [[lat, lng], ...]. Length should match elevation data. Used for Map polyline.
+lat_lng_values = <%= lat_lng %>;
+//lat_lng_values = [[0, 0], [1,1], [1,2], [0,3]];
+
+// Total output width (mm)
+width = 50;
+
+// The depth of the text plate (mm)
+plate_depth = 10;
+
+// Base thickness (mm)
+thickness = 5;
+
+// Text thickness (mm)
+text_thickness = 2;
+
+// Margins (around map) (mm)
+margin = 2.5;
+
+// Max height of the polyline
+max_polyline_height = 20;
+
+// END Params.
+// Everything below here is generation code.
+
+function half_angle_difference(a2, a1) =
+  abs(a2 - a1) < 180 ? (a2 - a1) / 2 :
+  abs(a2 - a1 - 360) < 180 ? (a2 - a1 - 360) / 2 :
+  (a2 - a1 + 360) / 2;
+
+
+/**
+ * Generates a map polyline using lat/lng and elevation.
+ */
+module map_polyline(scaled_points, elevation) {
+  max_idx = round(out_back / 100 * len(scaled_points) - 1);
+
+  elevation_min = min(elevation);
+  elevation_diff = max(elevation) - elevation_min;
+  map_polyline_height = min([max_polyline_height, elevation_diff / 10]); // Looks bad if stretched too far vertically.
+  echo("Map Height", map_polyline_height);
+  scaled_elevation = [ for (e = elevation) (e - elevation_min) * 0.95 * map_polyline_height / elevation_diff + 0.05 * map_polyline_height ];
+
+
+  // for (i = [1 : 1]) {
+  for (i = [0 : max_idx - 1]) {
+    p0 = scaled_points[i];
+    p1 = scaled_points[i+1];
+    h0 = scaled_elevation[i];
+    h1 = scaled_elevation[i+1];
+    dx = p1.x - p0.x;
+    dy = p1.y - p0.y;
+
+    dx_prev = i > 0 ? p0.x - scaled_points[i - 1].x : 0;
+    dy_prev = i > 0 ? p0.y - scaled_points[i - 1].y : 0;
+    dx_next = i < max_idx - 1 ? scaled_points[i + 2].x - p1.x : 0;
+    dy_next = i < max_idx - 1 ? scaled_points[i + 2].y - p1.y : 0;
+
+    edge_width = 1;
+    edge_len = sqrt(pow(dx, 2) + pow(dy, 2)) + 0.01;
+    
+    angle = atan2(dy, dx);
+    angle_prev = atan2(dy_prev, dx_prev);
+    angle_next = atan2(dy_next, dx_next);
+
+    // Make a "cube" with a slanted top, oriented along the x-axis toward (1, 0).
+    // https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Primitive_Solids#polyhedron
+    cube_points = [
+      [0, -edge_width/2, 0],         //0
+      [edge_len, -edge_width/2, 0],  //1
+      [edge_len, edge_width/2, 0],   //2
+      [0, edge_width/2, 0],          //3
+      [0, -edge_width/2, h0],        //4
+      [edge_len, -edge_width/2, h1], //5
+      [edge_len, edge_width/2, h1],  //6
+      [0, edge_width/2, h0]          //7
+    ];
+    cube_faces = [
+      [0, 1, 2, 3],  // bottom
+      [4, 5, 1, 0],  // front
+      [7, 6, 5, 4],  // top
+      [5, 6, 2, 1],  // right
+      [6, 7, 3, 2],  // back
+      [7, 4, 0, 3]   // left
+    ];
+
+    translate([p0.x, p0.y, 0]) {
+      // An edge of the correct length pointing in the correct diretion.
+      // 0 rotation points in the direction of (1, 0).
+      //rotate([0, 0, angle]) translate([0, -edge_width / 2, 0]) cube([edge_len, edge_width, 10]);
+      rotate([0, 0, angle]) {
+        difference() {
+          polyhedron(cube_points, cube_faces);
+
+          if (i < max_idx - 1) {
+            // Remove intersection with next edge
+            translate([edge_len, 0, 0]) rotate([0, 0, half_angle_difference(angle_next, angle)]) translate([0, -2*edge_width, -1]) cube([edge_width, 4*edge_width, map_polyline_height + 2]);
+          }
+
+          if (i > 0) {
+            // Remove intersection with previous edge
+            rotate([0, 0, 180 - half_angle_difference(angle, angle_prev)]) translate([0, -2*edge_width, -1]) cube([edge_width, 4*edge_width, map_polyline_height + 2]);
+          }
+        } 
+      }
+      
+
+      difference() {
+        cylinder(h=h0, r=edge_width/2, $fn=12);
+
+        // Remove intersection with current edge
+        rotate([0, 0, angle]) translate([0.001, -(edge_width + 2) / 2, -0.001]) cube([edge_width, edge_width + 2, map_polyline_height + 0.002]);
+
+        if (i > 0) {
+          // Remove intersection with previous edge
+          rotate([0, 0, 180 + angle_prev]) translate([0.001, -(edge_width + 2) / 2, -0.001]) cube([edge_width, edge_width + 2, map_polyline_height + 0.002]);
+        }
+      }
+    }
+
+    // Final cylinder
+    if (i == max_idx - 1) {
+      translate([p1.x, p1.y, 0]) {
+        difference() {
+        cylinder(h=h1, r=edge_width/2, $fn=12);
+
+        // Remove intersection with edge
+        rotate([0, 0, 180+angle]) translate([0.001, -(edge_width + 2) / 2, -0.001]) cube([edge_width, edge_width + 2, map_polyline_height + 0.002]);
+        }
+      }
+    }
+  }
+}
+
+
+/**
+ * The "text plate" is a 3D rectangular plaque below the map.
+ */
+module text_plate() {
+  angle = atan(thickness / plate_depth);
+  intersection() {
+    rotate([angle, 0, 0]) translate([0, 0, -thickness]) cube([width, plate_depth * 2, thickness]);
+    cube([width, plate_depth, thickness]);
+  }
+  rotate([angle, 0, 0]) translate([0, 0, -thickness]) {
+    // Center Aligned Title
+    translate([width / 2, 3.5, thickness - 0.001]) {
+      color("orange") linear_extrude(text_thickness / 2) {
+        text(title, size = font_size, font = font, halign = "center");
+      }
+    }
+  }
+}
+
+
+// Combine all the parts
+translate([0, plate_depth - 0.001, 0]) cube([width, width, thickness]);
+text_plate();
+
+max_size = width - 2*margin;
+// lat/lng is swapped x/y
+points = [ for (p = lat_lng_values) [p.y, p.x] ];
+
+points_x = [ for (p = points) p.x ];
+points_y = [ for (p = points) p.y ];
+points_x_min = min(points_x);
+points_y_min = min(points_y);
+
+points_width = max(points_x) - points_x_min;
+points_height = max(points_y) - points_y_min;
+
+map_width = points_width > points_height ? max_size : points_width / points_height * max_size;
+map_height = points_width > points_height ? points_height / points_width * max_size : max_size;
+scale = map_width / points_width;
+
+scaled_points = [ for (p = points) [(p.x - points_x_min) * scale, (p.y - points_y_min) * scale] ];
+
+// We're using the "outer photo dimensions" as our map area
+x_pos = margin;
+y_pos = plate_depth + margin;
+translate([x_pos + (width - 2*margin)/2, y_pos + (width - 2*margin)/2, thickness - 0.001]) color("orange") rotate([0, 0, map_rotation]) translate([-map_width/2, -map_height/2, 0]) map_polyline(scaled_points, elevation_values);
