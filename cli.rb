@@ -1,10 +1,8 @@
 #!/usr/bin/env ruby
 
 require 'thor'
-require 'active_support/core_ext/object/blank'
 require 'json'
 
-require_relative 'lib/formatter'
 require_relative 'lib/gpx_reader'
 require_relative 'lib/stl_writer'
 
@@ -17,9 +15,9 @@ class FigurineCLI < Thor
     gpx_contents = File.read(file)
     summary = GpxReader.summary(gpx_contents)
 
-    title = if options[:title].present? then options[:title] else summary[:name] end
-    out_back = if options[:out_back].present? then options[:out_back].to_i.to_s else '100' end
-    map_rotation = if options[:map_rotation].present? then options[:map_rotation] else '0' end
+    title = if options[:title].nil? then summary[:name] else options[:title] end
+    out_back = if options[:out_back].nil? then '100' else options[:out_back].to_i.to_s end
+    map_rotation = if options[:map_rotation].nil? then '0' else options[:map_rotation] end
 
 
     template_data = {
