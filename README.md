@@ -3,6 +3,8 @@
 Use OpenSCAD to generate 3D printable STL files for miniature figurines from any
 GPX course!
 
+![A 3D printed GPX figurine](sample.jpg)
+
 ## Docker Usage
 
 If you don't want to install compatible versions of Ruby and OpenSCAD, you can
